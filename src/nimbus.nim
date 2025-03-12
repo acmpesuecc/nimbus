@@ -6,25 +6,42 @@ import dotenv
 
 load()
 
-# Get required environment variables
-proc getCredentials(): (string, string, string) =
-  let PDSHOST = getEnv("PDSHOST", "https://bsky.social")
-  let BLUESKY_HANDLE = getEnv("BLUESKY_HANDLE", "")
-  let APP_PASSWORD = getEnv("APP_PASSWORD", "")
-  if BLUESKY_HANDLE == "" or APP_PASSWORD == "":
+type BlueskyClient = object
+  pdsHost: string
+  handle: string
+  appPassword: string
+  accessJwt: string
+  httpClient: HttpClient
+
+# Initialize client
+proc initBlueskyClient(): BlueskyClient =
+  # Get required environment variables
+  let pdsHost = getEnv("PDSHOST", "https://bsky.social")
+  let handle = getEnv("BLUESKY_HANDLE", "")
+  let appPassword = getEnv("APP_PASSWORD", "")
+  if handle == "" or appPassword == "":
     quit("[ERROR]: BLUESKY_HANDLE or APP_PASSWORD is missing from .env file", 1)
-  return (PDSHOST, BLUESKY_HANDLE, APP_PASSWORD)
+
+  var client = BlueskyClient(
+    pdsHost: pdsHost,
+    handle: handle,
+    appPassword: appPassword,
+    accessJwt: "",
+    httpClient: newHttpClient()
+  )
+  client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
+  return client
+
 
 # Fetch access token
-proc authenticate(client: var HttpClient, PDSHOST, BLUESKY_HANDLE,
-    APP_PASSWORD: string): string =
+proc authenticate(client: var BlueskyClient) =
   let authPayload = %*{
-    "identifier": BLUESKY_HANDLE,
-    "password": APP_PASSWORD
+    "identifier": client.handle,
+    "password": client.appPassword
   }
 
-  let authResponse = client.request(
-    PDSHOST & "/xrpc/com.atproto.server.createSession",
+  let authResponse = client.httpClient.request(
+    client.pdsHost & "/xrpc/com.atproto.server.createSession",
     httpMethod = HttpPost,
     body = authPayload.pretty
   )
@@ -33,7 +50,7 @@ proc authenticate(client: var HttpClient, PDSHOST, BLUESKY_HANDLE,
     quit("[ERROR]: Failed to authenticate. Response: " & authResponse.body, 1)
 
   let authJson = parseJson(authResponse.body)
-  return authJson["accessJwt"].getStr()
+  client.accessJwt =  authJson["accessJwt"].getStr()
 
 # Prompt user for a message
 proc promptForMessage(): string =
@@ -41,12 +58,11 @@ proc promptForMessage(): string =
   return readLine(stdin).strip()
 
 # Create a post on Bluesky and display the post link
-proc createPost(client: var HttpClient, PDSHOST, BLUESKY_HANDLE, accessJwt,
-    message: string) =
-  client.headers["Authorization"] = "Bearer " & accessJwt
+proc createPost(client: var BlueskyClient,  message: string) =
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
 
   let postPayload = %*{
-    "repo": BLUESKY_HANDLE,
+    "repo": client.handle,
     "collection": "app.bsky.feed.post",
     "record": %*{
       "text": message,
@@ -54,8 +70,8 @@ proc createPost(client: var HttpClient, PDSHOST, BLUESKY_HANDLE, accessJwt,
     }
   }
 
-  let postResponse = client.request(
-    PDSHOST & "/xrpc/com.atproto.repo.createRecord",
+  let postResponse = client.httpClient.request(
+    client.pdsHost & "/xrpc/com.atproto.repo.createRecord",
     httpMethod = HttpPost,
     body = postPayload.pretty
   )
@@ -67,25 +83,12 @@ proc createPost(client: var HttpClient, PDSHOST, BLUESKY_HANDLE, accessJwt,
   let uri = postJson["uri"].getStr()
   let postId = uri.split("/")[^1]
 
-  echo "[INFO]: Post successful: https://bsky.app/profile/" & BLUESKY_HANDLE &
+  echo "[INFO]: Post successful: https://bsky.app/profile/" & client.handle &
       "/post/" & postId
 
-# Main function
-proc main() =
-  let (PDSHOST, BLUESKY_HANDLE, APP_PASSWORD) = getCredentials()
-  var client = newHttpClient()
-  client.headers = newHttpHeaders({"Content-Type": "application/json"})
+when isMainModule:
+  var client = initBlueskyClient()
+  client.authenticate()
+  let message = promptForMessage()
+  client.createPost(message)
 
-  try:
-    let accessJwt = authenticate(client, PDSHOST, BLUESKY_HANDLE, APP_PASSWORD)
-    echo "[AUTH]: Access token received."
-
-    let message = promptForMessage()
-    if message == "":
-      quit("[ERROR]: Message cannot be empty.", 1)
-
-    createPost(client, PDSHOST, BLUESKY_HANDLE, accessJwt, message)
-  finally:
-    client.close()
-
-main()
