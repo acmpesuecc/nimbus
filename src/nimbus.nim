@@ -6,12 +6,16 @@ import dotenv
 
 load()
 
-type BlueskyClient = object
-  pdsHost: string
-  handle: string
-  appPassword: string
-  accessJwt: string
-  httpClient: HttpClient
+type
+  Config = object
+    pdsHost: string
+    handle: string
+    appPassword: string
+
+  BlueskyClient = object
+    config: Config
+    accessJwt: string
+    httpClient: HttpClient
 
 # Initialize client
 proc initBlueskyClient(): BlueskyClient =
@@ -22,26 +26,32 @@ proc initBlueskyClient(): BlueskyClient =
   if handle == "" or appPassword == "":
     quit("[ERROR]: BLUESKY_HANDLE or APP_PASSWORD is missing from .env file", 1)
 
-  var client = BlueskyClient(
+  let config = Config(
     pdsHost: pdsHost,
     handle: handle,
     appPassword: appPassword,
+  )
+
+  var client = BlueskyClient(
+    config: config,
     accessJwt: "",
     httpClient: newHttpClient()
   )
-  client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
-  return client
 
+  client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
+
+  echo "[AUTH]: Auth Token Received."
+  return client
 
 # Fetch access token
 proc authenticate(client: var BlueskyClient) =
   let authPayload = %*{
-    "identifier": client.handle,
-    "password": client.appPassword
+    "identifier": client.config.handle,
+    "password": client.config.appPassword
   }
 
   let authResponse = client.httpClient.request(
-    client.pdsHost & "/xrpc/com.atproto.server.createSession",
+    client.config.pdsHost & "/xrpc/com.atproto.server.createSession",
     httpMethod = HttpPost,
     body = authPayload.pretty
   )
@@ -62,7 +72,7 @@ proc createPost(client: var BlueskyClient,  message: string) =
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
 
   let postPayload = %*{
-    "repo": client.handle,
+    "repo": client.config.handle,
     "collection": "app.bsky.feed.post",
     "record": %*{
       "text": message,
@@ -71,7 +81,7 @@ proc createPost(client: var BlueskyClient,  message: string) =
   }
 
   let postResponse = client.httpClient.request(
-    client.pdsHost & "/xrpc/com.atproto.repo.createRecord",
+    client.config.pdsHost & "/xrpc/com.atproto.repo.createRecord",
     httpMethod = HttpPost,
     body = postPayload.pretty
   )
@@ -83,7 +93,7 @@ proc createPost(client: var BlueskyClient,  message: string) =
   let uri = postJson["uri"].getStr()
   let postId = uri.split("/")[^1]
 
-  echo "[INFO]: Post successful: https://bsky.app/profile/" & client.handle &
+  echo "[INFO]: Post successful: https://bsky.app/profile/" & client.config.handle &
       "/post/" & postId
 
 when isMainModule:

@@ -1,14 +1,11 @@
 # Package
 
 version       = "0.1.0"
-author        = "polarhive"
+author        = "polarhive, NavneetNayak, vortex77"
 description   = "TUI bluesky app"
 license       = "AGPL-3.0-or-later"
 srcDir        = "src"
 bin           = @["nimbus"]
-
-# Switches
-switch "define", "ssl"
 
 # Dependencies
 
