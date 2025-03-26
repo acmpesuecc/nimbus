@@ -10,3 +10,6 @@
 - https://learnxinyminutes.com/nim/
 - https://nim-by-example.github.io/ 
 - https://github.com/ringabout/awesome-nim
+- https://nim-lang.org/docs/tut1.html
+- https://narimiran.github.io/nim-basics/
+- https://nimprogrammingbook.com/
