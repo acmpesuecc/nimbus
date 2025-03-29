@@ -94,11 +94,43 @@ proc createPost(client: var BlueskyClient,  message: string) =
   let postId = uri.split("/")[^1]
 
   echo "[INFO]: Post successful: https://bsky.app/profile/" & client.config.handle &
-      "/post/" & postId
+       "/post/" & postId
+
+# Function to prompt for user handle
+proc promptForUserHandle(): string =
+  stdout.write("[INFO]: Enter your handle: ")
+  return readLine(stdin).strip()
+
+# Function to get posts for a specific user
+proc getPostsForUser(client: BlueskyClient, username: string): JsonNode =
+  # Resolve handle to DID
+  let resolveUrl = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" & username
+  let resolveResponse = client.httpClient.request(resolveUrl, httpMethod = HttpGet)
+
+  if resolveResponse.code != Http200:
+    echo "[ERROR]: Failed to resolve handle " & username & ". Response: " & resolveResponse.body
+    return %*{}
+
+  let resolveJson = parseJson(resolveResponse.body)
+  let did = resolveJson["did"].getStr()
+
+  # Get timeline for the DID
+  let timelineUrl = client.config.pdsHost & "/xrpc/app.bsky.feed.getTimeline?actor=" & did
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+  let timelineResponse = client.httpClient.request(timelineUrl, httpMethod = HttpGet)
+
+  if timelineResponse.code != Http200:
+    echo "[ERROR]: Failed to get timeline for user " & username & ". Response: " & timelineResponse.body
+    return %*{}
+
+  return parseJson(timelineResponse.body)
 
 when isMainModule:
   var client = initBlueskyClient()
   client.authenticate()
-  let message = promptForMessage()
-  client.createPost(message)
 
+  # Example usage of the new function:
+  let userHandle = promptForUserHandle() & ".bsky.social" # Replace with the desired username/handle
+  let posts = client.getPostsForUser(userHandle)
+  echo "[INFO]: Posts for user " & userHandle & ":"
+  echo posts.pretty
