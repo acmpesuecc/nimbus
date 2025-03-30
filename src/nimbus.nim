@@ -96,9 +96,32 @@ proc createPost(client: var BlueskyClient,  message: string) =
   echo "[INFO]: Post successful: https://bsky.app/profile/" & client.config.handle &
       "/post/" & postId
 
+#fetch the trending posts feed (frontpage - not signed in)
+proc fetchTrendingFeed(client: var BlueskyClient) =  #can add another argument to modify the url to change the limit of the number of posts the api can get, limit set to 30 for now (hard limit: 100)
+  let url =   "https://api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot&limit=30&lang=en"
+  #^this is the trending page url when you don't sign in to bluesky (i hope bluesky doesn't change its did anytime soon or else we will have to change this url everytime they do)
+  
+  let getResponse = client.httpClient.request(
+    url, 
+    httpMethod = HttpGet,
+  )
+
+  if getResponse.code != Http200:
+    quit("[ERROR]: Failed to get posts Response: " & getResponse.body, 1)
+
+  let feedArrayJson = parseJson(getResponse.body) #it returns the JObject of the feed
+ 
+  let feedJson = feedArrayJson["feed"]
+  if feedJson.len == 0:
+    quit("[ERROR]: No posts on trending rn", 1)
+   
+  #for now just echoing the displayName of the op and the text of the post
+  for i in 0..<(feedJson.len):
+    echo "Display name: " & feedJson[i]["post"]["author"]["displayName"].getStr() & "\n" & "Text: " & feedJson[i]["post"]["record"]["text"].getStr() & "\n"
+
 when isMainModule:
   var client = initBlueskyClient()
   client.authenticate()
   let message = promptForMessage()
   client.createPost(message)
-
+  #client.fetchTrendingFeed() #uncomment and run
