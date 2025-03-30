@@ -5,6 +5,11 @@ bsky client written in [nim]
 ```
 nimble run
 ```
+
+for MacOS users:
+```
+nimble build ; ./nimbus
+```
 ---
 
 ### Setup Credentials
