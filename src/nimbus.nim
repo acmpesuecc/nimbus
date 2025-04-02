@@ -38,7 +38,8 @@ proc initBlueskyClient(): BlueskyClient =
     httpClient: newHttpClient()
   )
 
-  client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
+  client.httpClient.headers = newHttpHeaders({
+      "Content-Type": "application/json"})
 
   echo "[AUTH]: Auth Token Received."
   return client
@@ -60,7 +61,7 @@ proc authenticate(client: var BlueskyClient) =
     quit("[ERROR]: Failed to authenticate. Response: " & authResponse.body, 1)
 
   let authJson = parseJson(authResponse.body)
-  client.accessJwt =  authJson["accessJwt"].getStr()
+  client.accessJwt = authJson["accessJwt"].getStr()
 
 # Prompt user for a message
 proc promptForMessage(): string =
@@ -68,7 +69,7 @@ proc promptForMessage(): string =
   return readLine(stdin).strip()
 
 # Create a post on Bluesky and display the post link
-proc createPost(client: var BlueskyClient,  message: string) =
+proc createPost(client: var BlueskyClient, message: string) =
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
 
   let postPayload = %*{
@@ -101,13 +102,47 @@ proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
   # Get timeline for the current logged in user.
   let timelineUrl = client.config.pdsHost & "/xrpc/app.bsky.feed.getTimeline"
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
-  let timelineResponse = client.httpClient.request(timelineUrl, httpMethod = HttpGet)
+  let timelineResponse = client.httpClient.request(timelineUrl,
+      httpMethod = HttpGet)
 
   if timelineResponse.code != Http200: #Error message in case unable to fetch timeline.
     echo "[ERROR]: Failed to get timeline. Response: " & timelineResponse.body
     return %*{}
 
   return parseJson(timelineResponse.body)
+
+#Function to resolve the did
+proc getDid(client: BlueskyClient): string =
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+  let getDidUri = client.config.pdsHost &
+      "/xrpc/com.atproto.identity.resolveHandle?handle=" & client.config.handle
+  let response = client.httpClient.request(getDidUri, httpmethod = HttpGet)
+  if response.code == Http200:
+    let jsonResponse = parseJson(response.body)
+    echo "[SSUCCESS] Got DID!"
+    return jsonResponse["did"].getStr()
+
+  else:
+    echo "[ERROR] Could not getDID!"
+  return "wrongDID"
+
+
+
+
+#Function to get ur repo as carfile
+proc getRepo(client: BlueskyClient) =
+  # let did = client.didResolve()
+  let did = client.getDid()
+  let repoUri = client.config.pdsHost & "/xrpc/com.atproto.sync.getRepo?did=" & did
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+  let response = client.httpClient.request(repoUri, httpMethod = HttpGet)
+
+  if response.code == Http200:
+    let filePath = getHomeDir() / "Downloads" / "myRepo.car"
+    writeFile(filePath, response.body)
+    echo "[SUCCESS]: Your repo is downloaded in the Downloads folder!"
+  else:
+    echo "[ERROR]: Could not fetch your repo. Error code:", response.code
 
 when isMainModule:
   var client = initBlueskyClient()
@@ -143,5 +178,7 @@ when isMainModule:
           --timeline
 
     """
+  elif args.contains("--getRepo"):
+    client.getRepo()
   else:
     echo "[INFO]: No specific action requested. Use --post or --timeline. Use --help to find out more."
