@@ -3,6 +3,7 @@ import strutils
 import httpclient, json
 import times
 import dotenv
+import sequtils
 
 load()
 
@@ -16,6 +17,20 @@ type
     config: Config
     accessJwt: string
     httpClient: HttpClient
+
+  Label = object
+
+  Response = object
+    did: string
+    handle: string
+    displayName: string
+    avatar: string
+    followersCount: int
+    followsCount: int
+    postsCount: int
+    associated: JsonNode
+    createdAt: string
+    labels: seq[Label] # Labels as an array of objects
 
 # Initialize client
 proc initBlueskyClient(): BlueskyClient =
@@ -112,14 +127,21 @@ proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
   return parseJson(timelineResponse.body)
 
 #Function to resolve the did
-proc getDid(client: BlueskyClient): string =
+proc getDid(client: BlueskyClient, handle: string): string =
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
-  let getDidUri = client.config.pdsHost &
-      "/xrpc/com.atproto.identity.resolveHandle?handle=" & client.config.handle
+  var getDidUri = ""
+  if handle != "":
+    getDidUri = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" & handle
+  else:
+    getDidUri = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" &
+        client.config.handle
+
   let response = client.httpClient.request(getDidUri, httpmethod = HttpGet)
   if response.code == Http200:
     let jsonResponse = parseJson(response.body)
     echo "[SSUCCESS] Got DID!"
+    echo jsonResponse["did"].getStr()
+
     return jsonResponse["did"].getStr()
 
   else:
@@ -127,12 +149,13 @@ proc getDid(client: BlueskyClient): string =
   return "wrongDID"
 
 
-
-
 #Function to get ur repo as carfile
 proc getRepo(client: BlueskyClient) =
   # let did = client.didResolve()
-  let did = client.getDid()
+  let did = getDid(client, "")
+  if did == "wrongDID":
+    echo "[ERROR]: Could not resolve DID. Aborting repo fetch."
+    return
   let repoUri = client.config.pdsHost & "/xrpc/com.atproto.sync.getRepo?did=" & did
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
   let response = client.httpClient.request(repoUri, httpMethod = HttpGet)
@@ -143,6 +166,27 @@ proc getRepo(client: BlueskyClient) =
     echo "[SUCCESS]: Your repo is downloaded in the Downloads folder!"
   else:
     echo "[ERROR]: Could not fetch your repo. Error code:", response.code
+
+proc getProfile(client: BlueskyClient, handle: string) =
+  let reqUri = "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=" & handle
+  # echo "[DEBUG] Profile Request URL: ", reqUri
+  let response = client.httpClient.request(reqUri)
+
+  if response.code == Http200:
+    let userJson = parseJson(response.body)
+    let user = to(userJson, Response)
+    echo "Handle: ", user.handle
+    echo "Display Name: ", user.displayName
+    echo "Followers Count: ", user.followersCount
+    echo "Follows Count: ", user.followsCount
+    echo "Posts Count: ", user.postsCount
+    echo "Created At: ", user.createdAt
+  else:
+    echo "Error fetching profile: ", response.code
+
+
+
+
 
 when isMainModule:
   var client = initBlueskyClient()
@@ -177,8 +221,21 @@ when isMainModule:
         To fetch data from timeline:
           --timeline
 
+        To download your Repo:
+          --getRepo
+
+        To display a handle info:
+          --getProfile-<handle>   //without the @ and To get your own info dont type handle
+
     """
   elif args.contains("--getRepo"):
     client.getRepo()
+
+  elif args.anyIt(it.startsWith("--getProfile-")):
+    for arg in args:
+      if arg.startsWith("--getProfile-"):
+        let handle = arg[13 .. ^1] # Extract everything after "--getProfile-"
+        getProfile(client, handle)
+
   else:
     echo "[INFO]: No specific action requested. Use --post or --timeline. Use --help to find out more."
