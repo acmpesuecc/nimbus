@@ -30,7 +30,7 @@ type
     postsCount: int
     associated: JsonNode
     createdAt: string
-    labels: seq[Label] # Labels as an array of objects
+    labels: seq[Label]
 
 # Initialize client
 proc initBlueskyClient(): BlueskyClient =
@@ -153,17 +153,23 @@ proc getDid(client: BlueskyClient, handle: string): string =
 proc getRepo(client: BlueskyClient) =
   # let did = client.didResolve()
   let did = getDid(client, "")
+
   if did == "wrongDID":
     echo "[ERROR]: Could not resolve DID. Aborting repo fetch."
     return
-  let repoUri = client.config.pdsHost & "/xrpc/com.atproto.sync.getRepo?did=" & did
+
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+
+  let repoUri = client.config.pdsHost & "/xrpc/com.atproto.sync.getRepo?did=" & did
+
+
   let response = client.httpClient.request(repoUri, httpMethod = HttpGet)
 
   if response.code == Http200:
     let filePath = getHomeDir() / "Downloads" / "myRepo.car"
     writeFile(filePath, response.body)
     echo "[SUCCESS]: Your repo is downloaded in the Downloads folder!"
+
   else:
     echo "[ERROR]: Could not fetch your repo. Error code:", response.code
 
@@ -175,12 +181,16 @@ proc getProfile(client: BlueskyClient, handle: string) =
   if response.code == Http200:
     let userJson = parseJson(response.body)
     let user = to(userJson, Response)
-    echo "Handle: ", user.handle
-    echo "Display Name: ", user.displayName
-    echo "Followers Count: ", user.followersCount
-    echo "Follows Count: ", user.followsCount
-    echo "Posts Count: ", user.postsCount
-    echo "Created At: ", user.createdAt
+
+    echo "\n______________________USER PROFILE______________________"
+    echo "█ Handle: ", user.handle
+    echo "█ Display Name: ", user.displayName
+    echo "█ Followers Count: ", user.followersCount
+    echo "█ Follows Count: ", user.followsCount
+    echo "█ Posts Count: ", user.postsCount
+    echo "█ Created At: ", user.createdAt
+    echo "____________________________________________"
+
   else:
     echo "Error fetching profile: ", response.code
 
@@ -204,29 +214,29 @@ when isMainModule:
     echo posts.pretty
 
   elif args.contains("--help"):
-    echo """
-  
-        ███╗░░██╗██╗███╗░░░███╗██████╗░██╗░░░██╗░██████╗
-        ████╗░██║██║████╗░████║██╔══██╗██║░░░██║██╔════╝
-        ██╔██╗██║██║██╔████╔██║██████╦╝██║░░░██║╚█████╗░
-        ██║╚████║██║██║╚██╔╝██║██╔══██╗██║░░░██║░╚═══██╗
-        ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝
-        ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░
-
-        Usage : ./nimbus [--post] [--timeline] [--help]
-
-        To create a post:
-          --post
-        
-        To fetch data from timeline:
-          --timeline
-
-        To download your Repo:
-          --getRepo
-
-        To display a handle info:
-          --getProfile-<handle>   //without the @ and To get your own info dont type handle
-
+    echo """ 
+   
+        ███╗░░██╗██╗███╗░░░███╗██████╗░██╗░░░██╗░██████╗ 
+        ████╗░██║██║████╗░████║██╔══██╗██║░░░██║██╔════╝ 
+        ██╔██╗██║██║██╔████╔██║██████╦╝██║░░░██║╚█████╗░ 
+        ██║╚████║██║██║╚██╔╝██║██╔══██╗██║░░░██║░╚═══██╗ 
+        ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝ 
+        ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░ 
+ 
+        Usage : ./nimbus [--post] [--timeline] [--help] 
+ 
+        To create a post: 
+          --post 
+         
+        To fetch data from timeline: 
+          --timeline 
+ 
+        To download your Repo: 
+          --getRepo 
+ 
+        To display a handle info: 
+          --getProfile-<handle>   //handle without @
+ 
     """
   elif args.contains("--getRepo"):
     client.getRepo()
@@ -234,7 +244,7 @@ when isMainModule:
   elif args.anyIt(it.startsWith("--getProfile-")):
     for arg in args:
       if arg.startsWith("--getProfile-"):
-        let handle = arg[13 .. ^1] # Extract everything after "--getProfile-"
+        let handle = arg[13 .. ^1] # Extracts everything after "--getProfile-"
         getProfile(client, handle)
 
   else:
