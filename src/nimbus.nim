@@ -127,13 +127,9 @@ proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
   return parseJson(timelineResponse.body)
 
 #Function to resolve the did
-proc getDid(client: BlueskyClient, handle: string): string =
+proc getDid(client: BlueskyClient): string =
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
-  var getDidUri = ""
-  if handle != "":
-    getDidUri = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" & handle
-  else:
-    getDidUri = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" &
+  let getDidUri = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" &
         client.config.handle
 
   let response = client.httpClient.request(getDidUri, httpmethod = HttpGet)
@@ -152,7 +148,7 @@ proc getDid(client: BlueskyClient, handle: string): string =
 #Function to get ur repo as carfile
 proc getRepo(client: BlueskyClient) =
   # let did = client.didResolve()
-  let did = getDid(client, "")
+  let did = getDid(client)
 
   if did == "wrongDID":
     echo "[ERROR]: Could not resolve DID. Aborting repo fetch."
