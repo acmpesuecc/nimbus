@@ -3,6 +3,7 @@ import strutils
 import httpclient, json
 import times
 import dotenv
+import sequtils
 
 load()
 
@@ -16,6 +17,20 @@ type
     config: Config
     accessJwt: string
     httpClient: HttpClient
+
+  Label = object
+
+  Response = object
+    did: string
+    handle: string
+    displayName: string
+    avatar: string
+    followersCount: int
+    followsCount: int
+    postsCount: int
+    associated: JsonNode
+    createdAt: string
+    labels: seq[Label]
 
 # Initialize client
 proc initBlueskyClient(): BlueskyClient =
@@ -38,7 +53,8 @@ proc initBlueskyClient(): BlueskyClient =
     httpClient: newHttpClient()
   )
 
-  client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
+  client.httpClient.headers = newHttpHeaders({
+      "Content-Type": "application/json"})
 
   echo "[AUTH]: Auth Token Received."
   return client
@@ -60,7 +76,7 @@ proc authenticate(client: var BlueskyClient) =
     quit("[ERROR]: Failed to authenticate. Response: " & authResponse.body, 1)
 
   let authJson = parseJson(authResponse.body)
-  client.accessJwt =  authJson["accessJwt"].getStr()
+  client.accessJwt = authJson["accessJwt"].getStr()
 
 # Prompt user for a message
 proc promptForMessage(): string =
@@ -68,7 +84,7 @@ proc promptForMessage(): string =
   return readLine(stdin).strip()
 
 # Create a post on Bluesky and display the post link
-proc createPost(client: var BlueskyClient,  message: string) =
+proc createPost(client: var BlueskyClient, message: string) =
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
 
   let postPayload = %*{
@@ -101,13 +117,82 @@ proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
   # Get timeline for the current logged in user.
   let timelineUrl = client.config.pdsHost & "/xrpc/app.bsky.feed.getTimeline"
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
-  let timelineResponse = client.httpClient.request(timelineUrl, httpMethod = HttpGet)
+  let timelineResponse = client.httpClient.request(timelineUrl,
+      httpMethod = HttpGet)
 
   if timelineResponse.code != Http200: #Error message in case unable to fetch timeline.
     echo "[ERROR]: Failed to get timeline. Response: " & timelineResponse.body
     return %*{}
 
   return parseJson(timelineResponse.body)
+
+#Function to resolve the did
+proc getDid(client: BlueskyClient): string =
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+  let getDidUri = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" &
+        client.config.handle
+
+  let response = client.httpClient.request(getDidUri, httpmethod = HttpGet)
+  if response.code == Http200:
+    let jsonResponse = parseJson(response.body)
+    echo "[SSUCCESS] Got DID!"
+    echo jsonResponse["did"].getStr()
+
+    return jsonResponse["did"].getStr()
+
+  else:
+    echo "[ERROR] Could not getDID!"
+  return "wrongDID"
+
+
+#Function to get ur repo as carfile
+proc getRepo(client: BlueskyClient) =
+  # let did = client.didResolve()
+  let did = getDid(client)
+
+  if did == "wrongDID":
+    echo "[ERROR]: Could not resolve DID. Aborting repo fetch."
+    return
+
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+
+  let repoUri = client.config.pdsHost & "/xrpc/com.atproto.sync.getRepo?did=" & did
+
+
+  let response = client.httpClient.request(repoUri, httpMethod = HttpGet)
+
+  if response.code == Http200:
+    let filePath = getHomeDir() / "Downloads" / "myRepo.car"
+    writeFile(filePath, response.body)
+    echo "[SUCCESS]: Your repo is downloaded in the Downloads folder!"
+
+  else:
+    echo "[ERROR]: Could not fetch your repo. Error code:", response.code
+
+proc getProfile(client: BlueskyClient, handle: string) =
+  let reqUri = "https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=" & handle
+  # echo "[DEBUG] Profile Request URL: ", reqUri
+  let response = client.httpClient.request(reqUri)
+
+  if response.code == Http200:
+    let userJson = parseJson(response.body)
+    let user = to(userJson, Response)
+
+    echo "\n______________________USER PROFILE______________________"
+    echo "█ Handle: ", user.handle
+    echo "█ Display Name: ", user.displayName
+    echo "█ Followers Count: ", user.followersCount
+    echo "█ Follows Count: ", user.followsCount
+    echo "█ Posts Count: ", user.postsCount
+    echo "█ Created At: ", user.createdAt
+    echo "____________________________________________"
+
+  else:
+    echo "Error fetching profile: ", response.code
+
+
+
+
 
 when isMainModule:
   var client = initBlueskyClient()
@@ -125,23 +210,38 @@ when isMainModule:
     echo posts.pretty
 
   elif args.contains("--help"):
-    echo """
-  
-        ███╗░░██╗██╗███╗░░░███╗██████╗░██╗░░░██╗░██████╗
-        ████╗░██║██║████╗░████║██╔══██╗██║░░░██║██╔════╝
-        ██╔██╗██║██║██╔████╔██║██████╦╝██║░░░██║╚█████╗░
-        ██║╚████║██║██║╚██╔╝██║██╔══██╗██║░░░██║░╚═══██╗
-        ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝
-        ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░
-
-        Usage : ./nimbus [--post] [--timeline] [--help]
-
-        To create a post:
-          --post
-        
-        To fetch data from timeline:
-          --timeline
-
+    echo """ 
+   
+        ███╗░░██╗██╗███╗░░░███╗██████╗░██╗░░░██╗░██████╗ 
+        ████╗░██║██║████╗░████║██╔══██╗██║░░░██║██╔════╝ 
+        ██╔██╗██║██║██╔████╔██║██████╦╝██║░░░██║╚█████╗░ 
+        ██║╚████║██║██║╚██╔╝██║██╔══██╗██║░░░██║░╚═══██╗ 
+        ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝ 
+        ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░ 
+ 
+        Usage : ./nimbus [--post] [--timeline] [--help] 
+ 
+        To create a post: 
+          --post 
+         
+        To fetch data from timeline: 
+          --timeline 
+ 
+        To download your Repo: 
+          --getRepo 
+ 
+        To display a handle info: 
+          --getProfile-<handle>   //handle without @
+ 
     """
+  elif args.contains("--getRepo"):
+    client.getRepo()
+
+  elif args.anyIt(it.startsWith("--getProfile-")):
+    for arg in args:
+      if arg.startsWith("--getProfile-"):
+        let handle = arg[13 .. ^1] # Extracts everything after "--getProfile-"
+        getProfile(client, handle)
+
   else:
     echo "[INFO]: No specific action requested. Use --post or --timeline. Use --help to find out more."
