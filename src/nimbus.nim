@@ -98,7 +98,7 @@ proc createPost(client: var BlueskyClient,  message: string) =
 
 # Function to get data from user timeline
 proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
-  # Get timeline for the current logged in user.
+  # Get timeline for the current logged in user. (By logged in I mean the creds on the .env file)
   let timelineUrl = client.config.pdsHost & "/xrpc/app.bsky.feed.getTimeline"
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
   let timelineResponse = client.httpClient.request(timelineUrl, httpMethod = HttpGet)
@@ -108,6 +108,51 @@ proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
     return %*{}
 
   return parseJson(timelineResponse.body)
+
+# Function to prompt for user handle
+proc promptForUserHandle(): string =
+  stdout.write("[INFO]: Enter user handle: ")
+  return readLine(stdin).strip()
+
+proc resolveDID(client:BlueskyClient, userhandle:string): string=
+  #resolves handle to did using [https://docs.bsky.app/docs/api/com-atproto-identity-resolve-handle]
+  let resolveUrl = client.config.pdsHost & "/xrpc/com.atproto.identity.resolveHandle?handle=" & userHandle
+  let resolveResponse = client.httpClient.request(resolveUrl, httpMethod = HttpGet)
+  if resolveResponse.code != Http200:
+    echo "[ERROR]: Failed to resolve handle " & userHandle & ". Response: " & resolveResponse.body
+    return ""
+  let resolveJson = parseJson(resolveResponse.body)
+  let did = resolveJson["did"].getStr()
+  return did
+
+# Function to get all posts by a user handle
+proc getAllPostsByUser(client: BlueskyClient, userHandle: string): seq[JsonNode] =
+  var allPosts: seq[JsonNode]
+  let did = resolveDID(client,userHandle)
+
+  # Get posts for the DID using listRecords [https://docs.bsky.app/docs/api/com-atproto-repo-list-records]
+  let listRecordsUrl = client.config.pdsHost & "/xrpc/com.atproto.repo.listRecords?repo=" & did & "&collection=app.bsky.feed.post&limit=100" #TODO: rn i set limit to 100, later might have to adjust this dynamically
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+
+  let listRecordsResponse = client.httpClient.request(
+    listRecordsUrl,
+    httpMethod = HttpGet
+  )
+
+  if listRecordsResponse.code != Http200:
+    echo "[ERROR]: Failed to get posts for user " & userHandle & ". Response: " & listRecordsResponse.body
+    return @[]
+
+  let listRecordsJson = parseJson(listRecordsResponse.body)
+
+  if listRecordsJson.hasKey("records") and listRecordsJson["records"].kind == JArray:
+    for record in listRecordsJson["records"].elems:
+      if (record.kind == JObject ) and ( record.hasKey("value") ):
+        allPosts.add(record["value"])
+  else:
+    echo "[ERROR]: Can't find records in list-records, this might mean that the person has not posted anything, or some err idk 🤷🏼‍♂️"
+
+  return allPosts
 
 when isMainModule:
   var client = initBlueskyClient()
@@ -124,6 +169,15 @@ when isMainModule:
     echo "Timeline for user " & client.config.handle & ":"
     echo posts.pretty
 
+  elif args.contains("--user-posts"):
+    let userHandle = promptForUserHandle()
+    let posts = client.getAllPostsByUser(userHandle)
+    echo "\n\nPosts by user " & userHandle & ":"
+    for post in posts:
+      echo "\nText: " & post["text"].getStr()
+      echo "Created at: " & post["createdAt"].getStr()
+      echo "--- \n"
+
   elif args.contains("--help"):
     echo """
   
@@ -134,7 +188,7 @@ when isMainModule:
         ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝
         ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░
 
-        Usage : ./nimbus [--post] [--timeline] [--help]
+        Usage : ./nimbus [--post] [--timeline] [--user-posts] [--help]
 
         To create a post:
           --post
@@ -142,6 +196,9 @@ when isMainModule:
         To fetch data from timeline:
           --timeline
 
+        To fetch all posts by a specific user:
+          --user-posts
+
     """
   else:
-    echo "[INFO]: No specific action requested. Use --post or --timeline. Use --help to find out more."
+    echo "[INFO]: No specific action requested. Use --post, --timeline, or --user-posts. Use --help to find out more."
