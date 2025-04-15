@@ -27,7 +27,7 @@ let posts = client.getAllPostsByUser(userHandle)
 
 
 tb.write(2, 1, fgWhite, "Press the following to perform an action: ")
-tb.write(2, 2, fgGreen, "P", fgYellow , " -> ", fgWhite, "Posts")
+tb.write(2, 2, fgWhite, "Type : ",fgGreen, "post", fgWhite, " to view all posts")
 tb.write(2, 5, "Press ", fgYellow, "ESC", fgWhite,
                " or ", fgYellow, "Q", fgWhite, " to quit")
 
