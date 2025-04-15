@@ -23,7 +23,7 @@ tb.drawHorizLine(2, 38, 6, doubleStyle=false)
 var client = initBlueskyClient()
 client.authenticate()
 let userHandle = "mebt.bsky.social"
-let posts = client.getAllPostsByUser(userHandle)
+
 
 
 tb.write(2, 1, fgWhite, "Press the following to perform an action: ")
@@ -51,6 +51,7 @@ while true:
         tb.write(2,10,temp_str)
         case temp_str
         of "POST":
+            let posts = client.getAllPostsByUser(userHandle) #moved inside so that function gets called only when input is "POST"
             for i,post in posts:
                 tb.write(2,15+i,resetStyle,post["text"].getStr())
         else:
