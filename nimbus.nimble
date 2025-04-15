@@ -5,9 +5,10 @@ author        = "polarhive, NavneetNayak, vortex73, DukeAvi, mebinthattil, ang53
 description   = "TUI bluesky app"
 license       = "AGPL-3.0-or-later"
 srcDir        = "src"
-bin           = @["nimbus"]
+bin           = @["tui"]
 
 # Dependencies
 
 requires "nim >= 2.0.8"
 requires "dotenv >= 2.0.0"
+requires "illwill >= 0.1.0" 
