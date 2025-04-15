@@ -7,18 +7,18 @@ import dotenv
 load()
 
 type
-  Config = object
+  Config* = object
     pdsHost: string
     handle: string
     appPassword: string
 
-  BlueskyClient = object
+  BlueskyClient* = object
     config: Config
     accessJwt: string
     httpClient: HttpClient
 
 # Initialize client
-proc initBlueskyClient(): BlueskyClient =
+proc initBlueskyClient*(): BlueskyClient =
   # Get required environment variables
   let pdsHost = getEnv("PDSHOST", "https://bsky.social")
   let handle = getEnv("BLUESKY_HANDLE", "")
@@ -44,7 +44,7 @@ proc initBlueskyClient(): BlueskyClient =
   return client
 
 # Fetch access token
-proc authenticate(client: var BlueskyClient) =
+proc authenticate*(client: var BlueskyClient) =
   let authPayload = %*{
     "identifier": client.config.handle,
     "password": client.config.appPassword
@@ -97,7 +97,7 @@ proc createPost(client: var BlueskyClient,  message: string) =
        "/post/" & postId
 
 # Function to get data from user timeline
-proc getPostsFromTimeline(client: BlueskyClient): JsonNode =
+proc getPostsFromTimeline*(client: BlueskyClient): JsonNode =
   # Get timeline for the current logged in user. (By logged in I mean the creds on the .env file)
   let timelineUrl = client.config.pdsHost & "/xrpc/app.bsky.feed.getTimeline"
   client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
@@ -126,7 +126,7 @@ proc resolveDID(client:BlueskyClient, userhandle:string): string=
   return did
 
 # Function to get all posts by a user handle
-proc getAllPostsByUser(client: BlueskyClient, userHandle: string): seq[JsonNode] =
+proc getAllPostsByUser*(client: BlueskyClient, userHandle: string): seq[JsonNode] =
   var allPosts: seq[JsonNode]
   let did = resolveDID(client,userHandle)
 
@@ -154,9 +154,12 @@ proc getAllPostsByUser(client: BlueskyClient, userHandle: string): seq[JsonNode]
 
   return allPosts
 
+# Putting the initilization outside so that if the functions of this file are called,
+# Authentication is done first.
+var client = initBlueskyClient()
+client.authenticate()
+
 when isMainModule:
-  var client = initBlueskyClient()
-  client.authenticate()
 
   let args = commandLineParams()
 
@@ -165,7 +168,7 @@ when isMainModule:
     client.createPost(message)
 
   elif args.contains("--timeline"):
-    let posts = client.getPostsFromTimeline()
+    let posts = getPostsFromTimeline(client)
     echo "Timeline for user " & client.config.handle & ":"
     echo posts.pretty
 
