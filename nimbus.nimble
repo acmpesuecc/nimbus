@@ -11,3 +11,4 @@ bin           = @["nimbus"]
 
 requires "nim >= 2.0.8"
 requires "dotenv >= 2.0.0"
+requires "illwill >= 0.4.1"
