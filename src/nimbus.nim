@@ -2,10 +2,9 @@ import illwill
 
 import ./tui/tui
 import ./tui/pages/login
+import ./tui/pages/mainpage
 
-type 
-  Pages = enum 
-    login, main, settings
+
 
 proc exitProc() {.noconv.} =
   illwillDeinit()
@@ -17,6 +16,7 @@ proc initTUIState*(state: var TUIState) =
   state.elements = @[]
   state.focusableIdxs = @[]
   state.currentFocus = 0
+  state.currentPage = login
 
 when isMainModule:
   illwillInit(fullscreen=true)
@@ -27,11 +27,13 @@ when isMainModule:
   tuiState.initTUIState() 
 
   var openingPage: Pages = login
-  # var currentPage = openingPage
+  var currentPage* = openingPage
 
-  case openingPage
+  case currentPage
   of login:
     tuiState.loginPageSetup()
+  of mainpage:
+    tuiState.mainPageSetup()
   else:
     discard
 

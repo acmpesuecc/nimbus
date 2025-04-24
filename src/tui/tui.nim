@@ -1,14 +1,20 @@
 import illwill
 
 import ./element
+import ./../nimbus
 
 # maybe this could be global instead of passing state everywhere, 
+type 
+  Pages* = enum 
+    login, mainpage, settings
+
 type 
   TUIState* = object 
     tb*: TerminalBuffer
     elements*: seq[Element]
     focusableIdxs*: seq[int]
     currentFocus*: int
+    currentPage*: Pages
 
 proc update*(state: var TUIState) =  
   for elem in state.elements:
@@ -44,6 +50,16 @@ method handleInput*(self: InputField, key: Key): bool =
       self.cursorPos += 1
     else:
       result = false
+
+method handleInput*(self: Button, key: Key): bool =
+  if not self.inFocus:
+    return false
+
+  if key == Key.Enter:
+    if self.action != nil:
+      self.action()
+    return true
+  return false
 
 proc handleKeyInput*(state: TUIState, key: Key): bool =
   for elem in state.elements:
