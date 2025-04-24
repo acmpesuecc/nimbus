@@ -23,6 +23,13 @@ type
     
   Label* = ref object of Element
     text*: string
+  
+  Button* = ref object of FocusableElement
+    text* : string
+    width* : int
+    height* : int
+    action* : proc()
+
 
 method render*(self: Element, tb: var TerminalBuffer) {.base.} = 
   tb.write(self.x, self.y, self.fg, self.bg, "")
@@ -56,3 +63,11 @@ method render*(self: InputField, tb: var TerminalBuffer) =
   let bg = if self.inFocus: bgBlack else: self.bg
   let padding = max(0, self.width - countGraphemes(displayText))
   tb.write(self.x, self.y, self.fg, bg, displayText & " ".repeat(padding))
+
+method render*(self: Button, tb: var TerminalBuffer) =
+  let displayText = self.text
+  let padding = max(0, self.width - countGraphemes(displayText))
+  let textToShow = displayText & " ".repeat(padding)
+  tb.write(self.x, self.y, self.fg, self.bg, textToShow)
+
+
