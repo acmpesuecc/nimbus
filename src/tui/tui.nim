@@ -1,20 +1,14 @@
 import illwill
 
 import ./element
-import ./../nimbus
 
 # maybe this could be global instead of passing state everywhere, 
-type 
-  Pages* = enum 
-    login, mainpage, settings
-
 type 
   TUIState* = object 
     tb*: TerminalBuffer
     elements*: seq[Element]
     focusableIdxs*: seq[int]
     currentFocus*: int
-    currentPage*: Pages
 
 proc update*(state: var TUIState) =  
   for elem in state.elements:
