@@ -4,7 +4,9 @@ import ./tui/tui
 import ./tui/pages/login
 import ./tui/pages/mainpage
 
-
+type 
+  Pages = enum 
+    login, mainpage, settings
 
 proc exitProc() {.noconv.} =
   illwillDeinit()
@@ -16,7 +18,6 @@ proc initTUIState*(state: var TUIState) =
   state.elements = @[]
   state.focusableIdxs = @[]
   state.currentFocus = 0
-  state.currentPage = login
 
 when isMainModule:
   illwillInit(fullscreen=true)
