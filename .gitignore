@@ -1,2 +1,5 @@
 .env
 nimbus
+tui
+src/bsky/bsky
+src/.DS_Store
