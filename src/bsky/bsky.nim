@@ -158,4 +158,49 @@ proc getAllPostsByUser*(client: BlueskyClient, userHandle: string): seq[JsonNode
 # Authentication is done first.
 var client = initBlueskyClient()
 client.authenticate()
+when isMainModule:
 
+  let args = commandLineParams()
+
+  if args.contains("--post"):
+    let message = promptForMessage()
+    client.createPost(message)
+
+  elif args.contains("--timeline"):
+    let posts = getPostsFromTimeline(client)
+    echo "Timeline for user " & client.config.handle & ":"
+    echo posts.pretty
+
+  elif args.contains("--user-posts"):
+    let userHandle = promptForUserHandle()
+    let posts = client.getAllPostsByUser(userHandle)
+    echo "\n\nPosts by user " & userHandle & ":"
+    for post in posts:
+      echo "\nText: " & post["text"].getStr()
+      echo "Created at: " & post["createdAt"].getStr()
+      echo "--- \n"
+
+  elif args.contains("--help"):
+    echo """
+  
+        ███╗░░██╗██╗███╗░░░███╗██████╗░██╗░░░██╗░██████╗
+        ████╗░██║██║████╗░████║██╔══██╗██║░░░██║██╔════╝
+        ██╔██╗██║██║██╔████╔██║██████╦╝██║░░░██║╚█████╗░
+        ██║╚████║██║██║╚██╔╝██║██╔══██╗██║░░░██║░╚═══██╗
+        ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝
+        ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░
+
+        Usage : ./nimbus [--post] [--timeline] [--user-posts] [--help]
+
+        To create a post:
+          --post
+        
+        To fetch data from timeline:
+          --timeline
+
+        To fetch all posts by a specific user:
+          --user-posts
+
+    """
+  else:
+    echo "[INFO]: No specific action requested. Use --post, --timeline, or --user-posts. Use --help to find out more."
