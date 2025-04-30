@@ -8,7 +8,7 @@ nimble run
 
 for MacOS users:
 ```
-nimble build ; ./nimbus --help
+nimble build ; ./nimbus
 ```
 ---
 
