@@ -1,4 +1,5 @@
 import illwill
+import os
 
 import ./tui/tui
 import ./tui/pages/login
@@ -27,8 +28,13 @@ when isMainModule:
   var tuiState*: TUIState 
   tuiState.initTUIState() 
 
+  
   var openingPage: Pages = login
-  var currentPage* = openingPage
+  var currentPage*: Pages = openingPage
+
+  const envFilePath = "src/bsky/.env" 
+  if fileExists(envFilePath):
+    currentPage = mainpage
 
   case currentPage
   of login:
