@@ -154,6 +154,40 @@ proc getAllPostsByUser*(client: BlueskyClient, userHandle: string): seq[JsonNode
 
   return allPosts
 
+# Function to get all accounts a user is following
+proc getAllFollowing(client: BlueskyClient, userHandle: string): seq[JsonNode] =
+  # Resolve the handle to DID using the same resolveDID function
+  let did = resolveDID(client, userHandle)
+  
+  if did == "":
+    echo "[ERROR]: Invalid DID resolution. Cannot fetch following accounts."
+    return @[]
+
+  # Get Handles of followers using followingURL  [https://docs.bsky.app/docs/api/app-bsky-graph-get-follows]
+  let followingUrl = client.config.pdsHost & "/xrpc/app.bsky.graph.getFollows?actor=" & did
+  client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+
+  let followingResponse = client.httpClient.request(
+    followingUrl,
+    httpMethod = HttpGet
+  )
+
+  if followingResponse.code != Http200:
+    echo "[ERROR]: Failed to get following accounts for user " & userHandle & ". Response: " & followingResponse.body
+    return @[]
+
+  let followingJson = parseJson(followingResponse.body)
+
+  var following: seq[JsonNode]
+  
+  if followingJson.hasKey("follows") and followingJson["follows"].kind == JArray:
+    for follow in followingJson["follows"].elems:
+      following.add(follow)
+  else:
+    echo "[ERROR]: Can't find following accounts in the response."
+
+  return following
+
 # Putting the initilization outside so that if the functions of this file are called,
 # Authentication is done first.
 var client = initBlueskyClient()
@@ -179,7 +213,31 @@ when isMainModule:
       echo "\nText: " & post["text"].getStr()
       echo "Created at: " & post["createdAt"].getStr()
       echo "--- \n"
+  
+  elif args.contains("--user-following"):
+    let following = client.getAllFollowing(client.config.handle)
+    echo "\nAccounts that " & client.config.handle & " is following:"
+    for account in following:
+        echo "Following: " & account["displayName"].getStr()
+        echo "Handle: " & account["handle"].getStr()
+        echo "--- \n"
 
+  elif args.contains("--following-posts"):
+    let following = client.getAllFollowing(client.config.handle)
+
+    for account in following:
+      let userHandle = account["handle"].getStr()
+      echo "\n[INFO]: Fetching posts from " & account["displayName"].getStr() & " (@" & userHandle & ")"
+      let posts = client.getAllPostsByUser(userHandle)
+
+      if posts.len == 0:
+        echo "  No posts found or error occurred."
+      else:
+        for post in posts:
+          echo "\n  Text: " & post["text"].getStr()
+          echo " Created at: " & post["createdAt"].getStr()
+          echo "  ---"
+  
   elif args.contains("--help"):
     echo """
   
@@ -190,7 +248,7 @@ when isMainModule:
         ██║░╚███║██║██║░╚═╝░██║██████╦╝╚██████╔╝██████╔╝
         ╚═╝░░╚══╝╚═╝╚═╝░░░░░╚═╝╚═════╝░░╚═════╝░╚═════╝░
 
-        Usage : ./nimbus [--post] [--timeline] [--user-posts] [--help]
+        Usage : ./nimbus [--post] [--timeline] [--user-posts] [--user-following] [--following-posts] [--help]
 
         To create a post:
           --post
@@ -201,6 +259,12 @@ when isMainModule:
         To fetch all posts by a specific user:
           --user-posts
 
+        To fetch all accounts followed by user:
+          --user-following
+
+        To fetch all posts by the accounts followed by user
+          --following-posts
+
     """
   else:
-    echo "[INFO]: No specific action requested. Use --post, --timeline, or --user-posts. Use --help to find out more."
+    echo "[INFO]: No specific action requested. Use --post, --timeline, --user-posts, --user-following or --following-posts. Use --help to find out more."
