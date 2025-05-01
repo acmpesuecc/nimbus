@@ -188,6 +188,51 @@ proc getAllFollowing(client: BlueskyClient, userHandle: string): seq[JsonNode] =
 
   return following
 
+#function to search for posts/users, use "@xyz" to search for an user and "xyz" to search for posts 
+proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] = 
+    
+    client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
+    
+    var searchUrl: string
+    
+    let splitWords = keyword.splitWhitespace()
+    
+    let startingWord = splitWords[0]
+    
+    case startingWord.startsWith("@")
+      of true:
+        let splitWordsUser = keyword[1..^1].splitWhitespace()
+        let query = join(splitWordsUser[0..splitWords.len-1],"+")
+        searchUrl = "https://public.api.bsky.app/xrpc/app.bsky.actor.searchActors?q=" & query
+        
+      of false:
+        let query = join(splitWords[0..splitWords.len-1],"+") 
+        searchUrl = "https://bsky.social/xrpc/app.bsky.feed.searchPosts?q=" & query & "&limit=25&sort=top" #for now just the top 25 results
+        
+    let searchResponse = client.httpClient.request(
+            searchUrl,
+            httpMethod = HttpGet
+          )  
+
+    if searchResponse.code != Http200:
+        echo "[ERROR]: Failed to get Users/Posts, response: " & searchResponse.body
+        return @[]
+
+    let searchJson = parseJson(searchResponse.body)
+
+    var searchResults: seq[JsonNode]
+      
+    if searchJson.hasKey("actors") and searchJson["actors"].kind == JArray:
+        for user in searchJson["actors"].elems:
+          searchResults.add(user)
+    elif searchJson.hasKey("posts") and searchJson["posts"].kind == JArray:
+        for post in searchJson["posts"].elems:
+          searchResults.add(post)
+    else:
+        echo "[ERROR]: Failed to retrieve users/posts"
+
+    return searchResults
+
 # Putting the initilization outside so that if the functions of this file are called,
 # Authentication is done first.
 var client = initBlueskyClient()
