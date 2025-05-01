@@ -188,7 +188,7 @@ proc getAllFollowing(client: BlueskyClient, userHandle: string): seq[JsonNode] =
 
   return following
 
-#function to search for posts/users, use "@xyz" to search for an user and "xyz" to search for posts 
+#function to search for posts/users, use "!xyz" to search for an user and "xyz" to search for posts 
 proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] = 
     
     client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
@@ -199,14 +199,14 @@ proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] =
     
     let startingWord = splitWords[0]
     
-    case startingWord.startsWith("@")
+    case startingWord.startsWith("!")
       of true:
         let splitWordsUser = keyword[1..^1].splitWhitespace()
-        let query = join(splitWordsUser[0..splitWords.len-1],"+")
+        let query = join(splitWordsUser,"+")
         searchUrl = "https://public.api.bsky.app/xrpc/app.bsky.actor.searchActors?q=" & query
         
       of false:
-        let query = join(splitWords[0..splitWords.len-1],"+") 
+        let query = join(splitWords,"+") 
         searchUrl = "https://bsky.social/xrpc/app.bsky.feed.searchPosts?q=" & query & "&limit=25&sort=top" #for now just the top 25 results
         
     let searchResponse = client.httpClient.request(
@@ -215,21 +215,22 @@ proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] =
           )  
 
     if searchResponse.code != Http200:
-        echo "[ERROR]: Failed to get Users/Posts, response: " & searchResponse.body
+        echo "[ERROR]: Failed to get Users/Posts, response: " & searchResponse.body    #i feel like i shld hv done better error handling
         return @[]
 
     let searchJson = parseJson(searchResponse.body)
 
     var searchResults: seq[JsonNode]
       
-    if searchJson.hasKey("actors") and searchJson["actors"].kind == JArray:
+    if searchJson.hasKey("actors") and searchJson["actors"].kind == JArray and searchJson["actors"].len!=0:
         for user in searchJson["actors"].elems:
           searchResults.add(user)
-    elif searchJson.hasKey("posts") and searchJson["posts"].kind == JArray:
+    elif searchJson.hasKey("posts") and searchJson["posts"].kind == JArray and searchJson["posts"].len!=0:
         for post in searchJson["posts"].elems:
           searchResults.add(post)
     else:
         echo "[ERROR]: Failed to retrieve users/posts"
+        return @[]
 
     return searchResults
 
@@ -282,6 +283,33 @@ when isMainModule:
           echo "\n  Text: " & post["text"].getStr()
           echo " Created at: " & post["createdAt"].getStr()
           echo "  ---"
+          
+  elif args.contains("--search"):
+      let searchQuery = join(args[1..^1]," ")
+      let searchResults = client.search(searchQuery)
+
+      if searchResults == @[]:
+          raise newException(IndexDefect,"No users or posts found") #raises indexDefect error if no users or posts found
+      
+      if searchResults[0].hasKey("uri"):
+          echo "Fetching " & $searchResults.len & " posts \n"
+          for post in searchResults:
+            let handle = post["author"]["handle"].getStr()
+            let displayName = post["author"]["displayName"].getStr()
+            let commentBody = post["record"]["text"].getStr()
+            let commentCount = $post["replyCount"]
+            let likeCount = $post["likeCount"]
+            echo "handle: " & handle & " displayName: " & displayName & "\n" & "comment: " & commentBody & "\n" & "commentCount: " & commentCount & " likecount: " & likeCount
+            echo "\n"
+      
+      elif searchResults[0].hasKey("did"):
+          echo "Fetching: " & $searchResults.len & " users \n"
+          for user in searchResults:
+              let handle = user["handle"].getStr()
+              let displayName = user["displayName"].getStr()
+              echo "handle: " & handle & " displayName: " & displayName & "\n"
+    
+    
   
   elif args.contains("--help"):
     echo """
