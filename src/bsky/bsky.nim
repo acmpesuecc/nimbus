@@ -188,7 +188,7 @@ proc getAllFollowing(client: BlueskyClient, userHandle: string): seq[JsonNode] =
 
   return following
 
-#function to search for posts/users, use "!xyz" to search for an user and "xyz" to search for posts 
+#function to search for posts/users, use "@xyz" to search for an user and "xyz" to search for posts . Eg: @mebin.in
 proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] = 
     
     client.httpClient.headers["Authorization"] = "Bearer " & client.accessJwt
@@ -197,9 +197,9 @@ proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] =
     
     let splitWords = keyword.splitWhitespace()
     
-    let startingWord = splitWords[0]
-    
-    case startingWord.startsWith("!")
+    let startingLetter = keyword.startsWith("@")
+
+    case startingLetter
       of true:
         let splitWordsUser = keyword[1..^1].splitWhitespace()
         let query = join(splitWordsUser,"+")
