@@ -10,11 +10,15 @@ type
     focusableIdxs*: seq[int]
     currentFocus*: int
 
-proc update*(state: var TUIState) =  
+proc update*(state: var TUIState) =
+  #first remove all elements from the terminal buffer
+  state.tb.clear()
   for elem in state.elements:
     # -_-feels weird to call elem.render instead of tb.render, have to look into this
     # can switch to proc's but then no dynamic dispatch
     # also massive room for optimization
+    for i in 0 .. terminalWidth():
+      state.tb.write(i, elem.y, " ")
     elem.render(state.tb)  
 
 method handleInput*(self: FocusableElement, key: Key): bool {.base.} =
@@ -67,6 +71,28 @@ proc findFocusableElements*(state: var TUIState) =
   for i, elem in state.elements:
     if elem of FocusableElement:
       state.focusableIdxs.add(i)
+
+proc scrollDown*(state: var TUIState): bool =
+  if state.elements.len != 0: 
+    #state.elements = state.elements[1..^1]
+
+    for element in state.elements:
+      if element.y-1 < 0:
+        element.y = 0
+      else:
+        element.y -= 1
+      state.update()
+    return true
+  return false
+
+proc scrollUp*(state: var TUIState): bool =
+  if state.elements.len != 0: 
+    # Move all elements up by 1 line
+    for elem in state.elements:
+      elem.y += 1
+    state.update()
+    return true
+  return false
 
 proc initFocus*(state: var TUIState) =
   if state.focusableIdxs.len == 0: return
