@@ -21,6 +21,7 @@ proc mainPageSetup*(state: var TUIState) =
   client.authenticate()
   let userHandle = "mebin.in"
   let posts = client.getAllPostsByUser(userHandle)
+  let following = client.getAllFollowing(userHandle)
   
   state.elements = @[
     Element(Heading(x: center.x, y: center.y - 7, fg: fgGreen, bg: bgNone, text: nimbusLogo, centered: true)),
@@ -29,14 +30,35 @@ proc mainPageSetup*(state: var TUIState) =
     #Element(Button(x: center.x - 11, y: center.y + 6, fg: fgWhite, bg: bgBlack, inFocus: false, text: "Posts", width: 30, height: 1, action: proc () = getPosts(state)))
   ]
 
-  var lineBreaker: int = 0
+  var cursor_y = center.y+4
+
   for post in posts:
     var text = post["text"].getStr()
-    state.elements.add(Element(Label(x: center.x - 19, y: center.y + 6 + lineBreaker, fg: fgWhite, bg: bgNone, text: text)))
-    lineBreaker += 2
-  
+    cursor_y += 2
+    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: text)))
+    
+
+  cursor_y += 4
+  state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: "Following:")))
+  for account in following:
+    var displayNameString = "Display Name: " & account["displayName"].getStr()
+    var handleString = "Handle: " & account["handle"].getStr()
+    cursor_y += 2
+    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: displayNameString)))
+    cursor_y += 2
+    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: handleString)))
+    cursor_y += 1
+
+  #print text from 1 to 20 for testing purposes (testing scrolling rn lel)
+  cursor_y += 4
+  state.elements.add(Element(Label(x: center.x - 19, y: cursor_y + 4, fg: fgWhite, bg: bgNone, text: "Random Numbers:")))
+  for i in 1..20:
+    var text = "Text: " & $i
+    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y + 2, fg: fgWhite, bg: bgNone, text: text)))
+    cursor_y += 2  
 
   state.findFocusableElements()
   state.initFocus()
   
   state.update()
+
