@@ -53,6 +53,11 @@ when isMainModule:
     case key 
     of Key.Tab:
       redraw = tuiState.toggleFocus() 
+    of Key.Down:
+      redraw = tuiState.scrollDown()
+    of Key.Up:
+      redraw = tuiState.scrollUp()
+
     else:
       redraw = tuiState.handleKeyInput(key)
 
