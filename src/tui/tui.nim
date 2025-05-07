@@ -17,6 +17,11 @@ proc update*(state: var TUIState) =
     # -_-feels weird to call elem.render instead of tb.render, have to look into this
     # can switch to proc's but then no dynamic dispatch
     # also massive room for optimization
+
+    #check for negative y values, if so, skip
+    if elem.y < 0:
+      continue
+
     for i in 0 .. terminalWidth():
       state.tb.write(i, elem.y, " ")
     elem.render(state.tb)  
@@ -74,13 +79,8 @@ proc findFocusableElements*(state: var TUIState) =
 
 proc scrollDown*(state: var TUIState): bool =
   if state.elements.len != 0: 
-    #state.elements = state.elements[1..^1]
-
     for element in state.elements:
-      if element.y-1 < 0:
-        element.y = 0
-      else:
-        element.y -= 1
+      element.y -= 1
       state.update()
     return true
   return false
