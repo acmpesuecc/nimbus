@@ -5,6 +5,7 @@ import ./../helpers
 import ./../tui
 import ./../../bsky/bsky
 import json
+import std/strutils
 
 const nimbusLogo = """
 ███╗░░██╗ ██╗ ███╗░░░███╗ ██████╗░ ██╗░░░██╗ ░██████╗
@@ -22,15 +23,25 @@ proc mainPageSetup*(state: var TUIState) =
   let userHandle = "mebin.in"
   let posts = client.getAllPostsByUser(userHandle)
   let following = client.getAllFollowing(userHandle)
-  
+
+
+  var cursor_y = 0
   state.elements = @[
-    Element(Heading(x: center.x, y: center.y - 7, fg: fgGreen, bg: bgNone, text: nimbusLogo, centered: true)),
+    #Element(Label(x: center.x - 19, y: center.y - 11, fg: fgWhite, bg: bgNone, text: "test1:")),
+    #Element(Label(x: center.x - 19, y: center.y - 12, fg: fgWhite, bg: bgNone, text: "test2:")),
+
+    #Element(Heading(x: center.x, y: 0, fg: fgGreen, height: 8, bg: bgNone, text: nimbusLogo, centered: false)),
     Element(Label(x: center.x - 19, y: center.y, fg: fgWhite, bg: bgNone, text: "Welcome to mainpage:")),
     Element(Label(x: center.x - 19, y: center.y + 4, fg: fgWhite, bg: bgNone, text: "Posts:")),
     #Element(Button(x: center.x - 11, y: center.y + 6, fg: fgWhite, bg: bgBlack, inFocus: false, text: "Posts", width: 30, height: 1, action: proc () = getPosts(state)))
   ]
+  #Adding heading as Label, cause with how Headings are rendered, it's not possible to scroll down, this can be a temp fix if heading is modified
+  let splitString = nimbusLogo.splitLines()
+  for i, line in splitString:
+    cursor_y += 1
+    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgGreen, bg: bgNone, text: line)))
 
-  var cursor_y = center.y+4
+  cursor_y = center.y+4
 
   for post in posts:
     var text = post["text"].getStr()
