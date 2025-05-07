@@ -155,7 +155,7 @@ proc getAllPostsByUser*(client: BlueskyClient, userHandle: string): seq[JsonNode
   return allPosts
 
 # Function to get all accounts a user is following
-proc getAllFollowing(client: BlueskyClient, userHandle: string): seq[JsonNode] =
+proc getAllFollowing*(client: BlueskyClient, userHandle: string): seq[JsonNode] =
   # Resolve the handle to DID using the same resolveDID function
   let did = resolveDID(client, userHandle)
   
@@ -341,3 +341,4 @@ when isMainModule:
     """
   else:
     echo "[INFO]: No specific action requested. Use --post, --timeline, --user-posts, --user-following or --following-posts. Use --help to find out more."
+  
