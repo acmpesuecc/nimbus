@@ -234,6 +234,28 @@ proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] =
 
     return searchResults
 
+#function that fetches posts from the homepage of the bsky website
+proc trendingPosts*(client: var BlueskyClient): seq[JsonNode] =
+    let searchUrl = "https://api.bsky.app/xrpc/app.bsky.feed.getFeed?feed=at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot&limit=30&lang=en"
+    let searchResponse = client.httpClient.request(
+              searchUrl,
+              httpMethod = HttpGet
+            )  
+
+    if searchResponse.code != Http200:
+          echo "[ERROR]: Failed to get Users/Posts, response: " & searchResponse.body 
+          return @[]
+    var searchResults: seq[JsonNode]
+    let searchJson = parseJson(searchResponse.body)
+    if searchJson.hasKey("feed") and searchJson["feed"].kind == JArray and searchJson["feed"].len!=0:
+      for post in searchJson["feed"].elems:
+          searchResults.add(post)
+      return searchResults
+    else:
+      echo "[ERROR]: Failed to retrieve trending posts"
+      return @[]
+
+
 # Putting the initilization outside so that if the functions of this file are called,
 # Authentication is done first.
 var client = initBlueskyClient()
@@ -309,7 +331,19 @@ when isMainModule:
               let displayName = user["displayName"].getStr()
               echo "handle: " & handle & " displayName: " & displayName & "\n"
     
-    
+  elif args.contains("--trending-posts"):
+      let trendingPosts = client.trendingPosts()
+      if trendingPosts == @[]:
+          raise newException(IndexDefect,"No posts found") #raises indexDefect error if no users or posts found
+      echo "Fetching posts from trending"
+      for post in trendingPosts:
+        let trendingPost = post["post"]
+        let handle = trendingPost["author"]["handle"].getStr()
+        let displayName = trendingPost["author"]["displayName"].getStr()
+        let commentBody = trendingPost["record"]["text"].getStr()
+        let commentCount = $trendingPost["replyCount"]
+        let likeCount = $trendingPost["likeCount"]
+        echo "handle: " & handle & " displayName: " & "\n" & displayName & "\n" & "text: " & commentBody & "\n" & "commentCount: " & commentCount & " likecount: " & likeCount & "\n"
   
   elif args.contains("--help"):
     echo """
