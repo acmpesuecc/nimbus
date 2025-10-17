@@ -6,6 +6,7 @@ import ./../tui
 import ./../../bsky/bsky
 import json
 import std/strutils
+import std/envvars
 
 const nimbusLogo = """
 ███╗░░██╗ ██╗ ███╗░░░███╗ ██████╗░ ██╗░░░██╗ ░██████╗
