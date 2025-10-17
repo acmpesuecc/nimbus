@@ -20,7 +20,7 @@ proc mainPageSetup*(state: var TUIState) =
   var center = findCenter(terminalWidth(), terminalHeight())
   var client = initBlueskyClient()
   client.authenticate()
-  let userHandle = "mebin.in"
+  var userHandle = getEnv("BLUESKY_HANDLE", "mebin.in")
   let posts = client.getAllPostsByUser(userHandle)
   let following = client.getAllFollowing(userHandle)
 
