@@ -1,64 +1,42 @@
 import illwill
-
 import ./../element
 import ./../helpers
-import ./../tui
-import ./../../nimbus
+import ./../client
 import ./mainpage
 
-const nimbusLogo = """
-███╗░░██╗ ██╗ ███╗░░░███╗ ██████╗░ ██╗░░░██╗ ░██████╗
-████╗░██║ ██║ ████╗░████║ ██╔══██╗ ██║░░░██║ ██╔════╝
-██╔██╗██║ ██║ ██╔████╔██║ ██████╦╝ ██║░░░██║ ╚█████╗░
-██║╚████║ ██║ ██║╚██╔╝██║ ██╔══██╗ ██║░░░██║ ░╚═══██╗
-██║░╚███║ ██║ ██║░╚═╝░██║ ██████╦╝ ╚██████╔╝ ██████╔╝
-╚═╝░░╚══╝ ╚═╝ ╚═╝░░░░░╚═╝ ╚═════╝   ╚═════╝ ╚═════╝░
-"""
+const nimbusLogo = """<your logo here>"""
 
-proc loginPageSetup*(state: var TUIState) = 
-  var center = findCenter(terminalWidth(), terminalHeight())
+proc loginPageSetup*(state: var TUIState, client: Client) =
+  let center = findCenter(terminalWidth(), terminalHeight())
 
-  
-
-  proc mainpageRoute() =
-    proc initTUIState(state: var TUIState) = #TODO: Somebody plj help, I'm not able to import this function from nimbus.nim, just put this here for now
-      state.tb = newTerminalBuffer(terminalWidth(), terminalHeight())
-      state.elements = @[]
-      state.focusableIdxs = @[]
-      state.currentFocus = 0
-
-
-    var tuiState: TUIState 
+  proc mainpageRoute(client: Client) =
+    var tuiState: TUIState
     tuiState.initTUIState()
-    tuiState.mainPageSetup()
+    tuiState.mainPageSetup(client)
     tuiState.tb.display()
 
     while true:
-      var key = getKey() 
-      var redraw = false
-      
-      case key 
-      of Key.Tab:
-        redraw = tuiState.toggleFocus() 
-      else:
-        redraw = tuiState.handleKeyInput(key)
+      let key = getKey()
+      let redraw = tuiState.handleKeyInput(key) or
+                   (key == Key.Tab and tuiState.toggleFocus())
 
       if redraw:
         tuiState.update()
         tuiState.tb.display()
-    
+
   proc writeToEnv(Handle, Password: InputField) =
-    let PDSHOST : string = "PDSHOST=https://bsky.social" & "\n"
-    let BLUESKY_HANDLE : string = "BLUESKY_HANDLE=" & Handle.text & "\n"
-    let APP_PASSWORD : string = "APP_PASSWORD=" & Password.text & "\n"
+    let PDSHOST = "PDSHOST=https://bsky.social\n"
+    let BLUESKY_HANDLE = "BLUESKY_HANDLE=" & Handle.text & "\n"
+    let APP_PASSWORD = "APP_PASSWORD=" & Password.text & "\n"
 
     writeFile(".env", PDSHOST & BLUESKY_HANDLE & APP_PASSWORD)
     writeFile("src/bsky/.env", PDSHOST & BLUESKY_HANDLE & APP_PASSWORD)
 
-    mainpageRoute()
+    mainpageRoute(client)
 
-  var BLUESKY_HANDLE : InputField = InputField(x: center.x - 11, y: center.y, fg: fgWhite, bg: bgBlack, inFocus: false, width: 30, text: "", cursorPos: 0)
-  var APP_PASSWORD : InputField = InputField(x: center.x - 11, y: center.y + 3, fg: fgWhite, bg: bgBlack, inFocus: false, width: 30, text: "", cursorPos: 0)
+  var BLUESKY_HANDLE = InputField(x: center.x - 11, y: center.y, fg: fgWhite, bg: bgBlack, inFocus: false, width: 30, text: "", cursorPos: 0)
+  var APP_PASSWORD = InputField(x: center.x - 11, y: center.y + 3, fg: fgWhite, bg: bgBlack, inFocus: false, width: 30, text: "", cursorPos: 0)
+
   state.elements = @[
     Element(Heading(x: center.x, y: center.y - 7, fg: fgGreen, bg: bgNone, text: nimbusLogo, centered: true)),
     Element(Label(x: center.x - 19, y: center.y, fg: fgWhite, bg: bgNone, text: "Handle:")),
@@ -70,5 +48,4 @@ proc loginPageSetup*(state: var TUIState) =
 
   state.findFocusableElements()
   state.initFocus()
-  
   state.update()

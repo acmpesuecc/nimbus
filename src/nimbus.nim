@@ -1,9 +1,8 @@
-import illwill
-import os
-
+import ./client  # Assuming this defines `Client` and `newClient`
 import ./tui/tui
 import ./tui/pages/login
 import ./tui/pages/mainpage
+import illwill, os
 
 type 
   Pages = enum 
@@ -24,11 +23,14 @@ when isMainModule:
   illwillInit(fullscreen=true)
   setControlCHook(exitProc)
   hideCursor()
- 
+
+  # ✅ Initialize and authenticate client once
+  var client = newClient()
+  client.authenticate()
+
   var tuiState*: TUIState 
   tuiState.initTUIState() 
 
-  
   var openingPage: Pages = login
   var currentPage*: Pages = openingPage
 
@@ -38,9 +40,9 @@ when isMainModule:
 
   case currentPage
   of login:
-    tuiState.loginPageSetup()
+    tuiState.loginPageSetup(client)
   of mainpage:
-    tuiState.mainPageSetup()
+    tuiState.mainPageSetup(client)
   else:
     discard
 
@@ -57,13 +59,9 @@ when isMainModule:
       redraw = tuiState.scrollDown()
     of Key.Up:
       redraw = tuiState.scrollUp()
-
     else:
       redraw = tuiState.handleKeyInput(key)
 
     if redraw:
       tuiState.update()
       tuiState.tb.display()
-
-
-
