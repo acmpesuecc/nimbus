@@ -1,74 +1,23 @@
 import illwill
+import ../[tui, element]
 
-import ./../element
-import ./../helpers
-import ./../tui
-import ./../../nimbus
-import ./mainpage
-
-const nimbusLogo = """
-███╗░░██╗ ██╗ ███╗░░░███╗ ██████╗░ ██╗░░░██╗ ░██████╗
-████╗░██║ ██║ ████╗░████║ ██╔══██╗ ██║░░░██║ ██╔════╝
-██╔██╗██║ ██║ ██╔████╔██║ ██████╦╝ ██║░░░██║ ╚█████╗░
-██║╚████║ ██║ ██║╚██╔╝██║ ██╔══██╗ ██║░░░██║ ░╚═══██╗
-██║░╚███║ ██║ ██║░╚═╝░██║ ██████╦╝ ╚██████╔╝ ██████╔╝
-╚═╝░░╚══╝ ╚═╝ ╚═╝░░░░░╚═╝ ╚═════╝   ╚═════╝ ╚═════╝░
-"""
-
-proc loginPageSetup*(state: var TUIState) = 
-  var center = findCenter(terminalWidth(), terminalHeight())
-
-  
-
-  proc mainpageRoute() =
-    proc initTUIState(state: var TUIState) = #TODO: Somebody plj help, I'm not able to import this function from nimbus.nim, just put this here for now
-      state.tb = newTerminalBuffer(terminalWidth(), terminalHeight())
-      state.elements = @[]
-      state.focusableIdxs = @[]
-      state.currentFocus = 0
-
-
-    var tuiState: TUIState 
-    tuiState.initTUIState()
-    tuiState.mainPageSetup()
-    tuiState.tb.display()
-
-    while true:
-      var key = getKey() 
-      var redraw = false
-      
-      case key 
-      of Key.Tab:
-        redraw = tuiState.toggleFocus() 
-      else:
-        redraw = tuiState.handleKeyInput(key)
-
-      if redraw:
-        tuiState.update()
-        tuiState.tb.display()
-    
-  proc writeToEnv(Handle, Password: InputField) =
-    let PDSHOST : string = "PDSHOST=https://bsky.social" & "\n"
-    let BLUESKY_HANDLE : string = "BLUESKY_HANDLE=" & Handle.text & "\n"
-    let APP_PASSWORD : string = "APP_PASSWORD=" & Password.text & "\n"
-
-    writeFile(".env", PDSHOST & BLUESKY_HANDLE & APP_PASSWORD)
-    writeFile("src/bsky/.env", PDSHOST & BLUESKY_HANDLE & APP_PASSWORD)
-
-    mainpageRoute()
-
-  var BLUESKY_HANDLE : InputField = InputField(x: center.x - 11, y: center.y, fg: fgWhite, bg: bgBlack, inFocus: false, width: 30, text: "", cursorPos: 0)
-  var APP_PASSWORD : InputField = InputField(x: center.x - 11, y: center.y + 3, fg: fgWhite, bg: bgBlack, inFocus: false, width: 30, text: "", cursorPos: 0)
+proc loginPageSetup*(state: var TUIState) =
+  state.loginRequested = false
+  let x = max(1, (state.tb.width - 40) div 2)
+  let y = max(2, (state.tb.height - 12) div 2)
+  state.handle = InputField(x: x, y: y+3, fg: fgWhite, width: 36)
+  state.password = InputField(x: x, y: y+6, fg: fgWhite, width: 36, secret: true)
+  state.status = Label(x: 1, y: y+10, fg: fgYellow)
+  # The event loop owns navigation; callbacks only signal an action.
   state.elements = @[
-    Element(Heading(x: center.x, y: center.y - 7, fg: fgGreen, bg: bgNone, text: nimbusLogo, centered: true)),
-    Element(Label(x: center.x - 19, y: center.y, fg: fgWhite, bg: bgNone, text: "Handle:")),
-    Element(Label(x: center.x - 19, y: center.y + 3, fg: fgWhite, bg: bgNone, text: "Passwd:")),
-    Element(BLUESKY_HANDLE),
-    Element(APP_PASSWORD),
-    Element(Button(x: center.x - 11, y: center.y + 6, fg: fgWhite, bg: bgBlack, inFocus: false, text: "Login", width: 30, height: 1, action: proc() = writeToEnv(BLUESKY_HANDLE, APP_PASSWORD)))
-  ]
-
+    Element(Label(x: x, y: y, fg: fgGreen, text: "NIMBUS | Sign in")),
+    Element(Label(x: x, y: y+2, fg: fgWhite, text: "Handle")),
+    Element(state.handle),
+    Element(Label(x: x, y: y+5, fg: fgWhite, text: "App password")),
+    Element(state.password),
+    Element(Button(x: x, y: y+8, fg: fgWhite, text: "Sign in", width: 36)),
+    Element(state.status),
+    Element(Label(x: 1, y: state.tb.height-1, fg: fgWhite, text: "Tab: next field | Enter: sign in | Esc: quit"))]
   state.findFocusableElements()
   state.initFocus()
-  
   state.update()

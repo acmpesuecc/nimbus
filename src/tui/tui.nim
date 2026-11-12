@@ -9,6 +9,9 @@ type
     elements*: seq[Element]
     focusableIdxs*: seq[int]
     currentFocus*: int
+    loginRequested*: bool
+    handle*, password*: InputField
+    status*: Label
 
 proc update*(state: var TUIState) =
   #first remove all elements from the terminal buffer
@@ -47,8 +50,8 @@ method handleInput*(self: InputField, key: Key): bool =
     if self.cursorPos < self.text.len:
       self.cursorPos += 1
   else:
-    let ch = char(key)
-    if ord(ch) >= 33 and ord(ch) <= 126:
+    if ord(key) >= 32 and ord(key) <= 126:
+      let ch = char(ord(key))
       self.text = self.text[0..<self.cursorPos] & ch & self.text[self.cursorPos..^1]
       self.cursorPos += 1
     else:
@@ -73,6 +76,8 @@ proc handleKeyInput*(state: TUIState, key: Key): bool =
   return false
 
 proc findFocusableElements*(state: var TUIState) =
+  state.focusableIdxs = @[]
+  state.currentFocus = 0
   for i, elem in state.elements:
     if elem of FocusableElement:
       state.focusableIdxs.add(i)
@@ -81,7 +86,7 @@ proc scrollDown*(state: var TUIState): bool =
   if state.elements.len != 0: 
     for element in state.elements:
       element.y -= 1
-      state.update()
+      discard
     return true
   return false
 

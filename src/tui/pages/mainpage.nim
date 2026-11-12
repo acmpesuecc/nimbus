@@ -1,76 +1,71 @@
 import illwill
+import ../[tui, element]
+import ../../bsky/bsky
+import std/[json, strutils, wordwrap, times]
 
-import ./../element
-import ./../helpers
-import ./../tui
-import ./../../bsky/bsky
-import json
-import std/strutils
-import std/envvars
+proc renderTimeline*(state: var TUIState, timeline: JsonNode,
+                     error = "", status = "", notice = "") =
+  let width = max(1, min(86, state.tb.width - 4))
+  let x = max(0, (state.tb.width - width) div 2)
+  let divider = repeat("-", width)
+  var elements: seq[Element] = @[]
+  var y = 0
 
-const nimbusLogo = """
-███╗░░██╗ ██╗ ███╗░░░███╗ ██████╗░ ██╗░░░██╗ ░██████╗
-████╗░██║ ██║ ████╗░████║ ██╔══██╗ ██║░░░██║ ██╔════╝
-██╔██╗██║ ██║ ██╔████╔██║ ██████╦╝ ██║░░░██║ ╚█████╗░
-██║╚████║ ██║ ██║╚██╔╝██║ ██╔══██╗ ██║░░░██║ ░╚═══██╗
-██║░╚███║ ██║ ██║░╚═╝░██║ ██████╦╝ ╚██████╔╝ ██████╔╝
-╚═╝░░╚══╝ ╚═╝ ╚═╝░░░░░╚═╝ ╚═════╝   ╚═════╝ ╚═════╝░
-"""
+  proc addLine(text = "", color = fgWhite) =
+    # Wrap paragraphs separately to retain deliberate line breaks in posts.
+    for paragraph in text.splitLines():
+      for line in wrapWords(paragraph, width).splitLines():
+        elements.add(Element(Label(x: x, y: y, fg: color, text: line)))
+        inc y
 
-proc mainPageSetup*(state: var TUIState) = 
-  var center = findCenter(terminalWidth(), terminalHeight())
-  var client = initBlueskyClient()
-  client.authenticate()
-  var userHandle = getEnv("BLUESKY_HANDLE", "mebin.in")
-  let posts = client.getAllPostsByUser(userHandle)
-  let following = client.getAllFollowing(userHandle)
+  addLine("NIMBUS / HOME" & (if status.len > 0: " | " & status else: ""), fgGreen)
+  addLine("Up/Down: scroll | R: refresh | L: sign out | Esc: quit")
+  addLine(divider, fgBlue)
+  if notice.len > 0:
+    addLine(notice, fgYellow)
 
+  let feed = timeline{"feed"}
+  if error.len > 0:
+    addLine(error, fgYellow)
+  elif feed.isNil or feed.kind != JArray:
+    addLine("No timeline returned. Press R to retry.", fgYellow)
+  elif feed.len == 0:
+    addLine()
+    addLine("Your timeline is empty.", fgYellow)
+    addLine("Follow some accounts, then press R to refresh.")
+  else:
+    for item in feed:
+      let post = item{"post"}
+      addLine()
+      let handle = "@" & post{"author", "handle"}.getStr("unknown")
+      let name = post{"author", "displayName"}.getStr().strip()
+      addLine((if name.len > 0: name & "  " else: "") & handle, fgCyan)
+      let createdAt = post{"record", "createdAt"}.getStr()
+      if createdAt.len >= 16 and createdAt[10] == 'T':
+        let zone = if createdAt.endsWith("Z"): " UTC" else: ""
+        addLine(createdAt[0..9] & " " & createdAt[11..15] & zone)
+      addLine()
+      let text = post{"record", "text"}.getStr()
+      if text.len > 0:
+        addLine(text)
+      else:
+        addLine("[Post with attachment]")
+      addLine()
+      addLine(divider, fgBlue)
 
-  var cursor_y = 0
-  state.elements = @[
-    #Element(Label(x: center.x - 19, y: center.y - 11, fg: fgWhite, bg: bgNone, text: "test1:")),
-    #Element(Label(x: center.x - 19, y: center.y - 12, fg: fgWhite, bg: bgNone, text: "test2:")),
-
-    #Element(Heading(x: center.x, y: 0, fg: fgGreen, height: 8, bg: bgNone, text: nimbusLogo, centered: false)),
-    Element(Label(x: center.x - 19, y: center.y, fg: fgWhite, bg: bgNone, text: "Welcome to mainpage:")),
-    Element(Label(x: center.x - 19, y: center.y + 4, fg: fgWhite, bg: bgNone, text: "Posts:")),
-    #Element(Button(x: center.x - 11, y: center.y + 6, fg: fgWhite, bg: bgBlack, inFocus: false, text: "Posts", width: 30, height: 1, action: proc () = getPosts(state)))
-  ]
-  #Adding heading as Label, cause with how Headings are rendered, it's not possible to scroll down, this can be a temp fix if heading is modified
-  let splitString = nimbusLogo.splitLines()
-  for i, line in splitString:
-    cursor_y += 1
-    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgGreen, bg: bgNone, text: line)))
-
-  cursor_y = center.y+4
-
-  for post in posts:
-    var text = post["text"].getStr()
-    cursor_y += 2
-    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: text)))
-    
-
-  cursor_y += 4
-  state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: "Following:")))
-  for account in following:
-    var displayNameString = "Display Name: " & account["displayName"].getStr()
-    var handleString = "Handle: " & account["handle"].getStr()
-    cursor_y += 2
-    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: displayNameString)))
-    cursor_y += 2
-    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y, fg: fgWhite, bg: bgNone, text: handleString)))
-    cursor_y += 1
-
-  #print text from 1 to 20 for testing purposes (testing scrolling rn lel)
-  cursor_y += 4
-  state.elements.add(Element(Label(x: center.x - 19, y: cursor_y + 4, fg: fgWhite, bg: bgNone, text: "Random Numbers:")))
-  for i in 1..20:
-    var text = "Text: " & $i
-    state.elements.add(Element(Label(x: center.x - 19, y: cursor_y + 2, fg: fgWhite, bg: bgNone, text: text)))
-    cursor_y += 2  
-
+  state.elements = elements
   state.findFocusableElements()
-  state.initFocus()
-  
   state.update()
 
+proc mainPageSetup*(state: var TUIState, client: BlueskyClient,
+                    refreshing = false, notice = "") =
+  state.renderTimeline(nil, (if refreshing: "Refreshing feed..." else: "Loading feed..."))
+  state.tb.display()
+  var timeline: JsonNode
+  var error = ""
+  try:
+    timeline = client.getPostsFromTimeline()
+  except CatchableError:
+    error = "Unable to load timeline. Press R to retry or L to sign out."
+  let status = if error.len == 0: "Updated " & now().format("HH:mm:ss") else: ""
+  state.renderTimeline(timeline, error, status, notice)
