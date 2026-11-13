@@ -16,6 +16,7 @@ type
     text*: string
     width*: int
     cursorPos*: int
+    secret*: bool
     
   Heading* = ref object of Element
     text*: string
@@ -51,15 +52,18 @@ method render*(self: Label, tb: var TerminalBuffer) =
   tb.write(self.x, self.y, self.fg, self.bg, self.text)
 
 method render*(self: InputField, tb: var TerminalBuffer) = 
-  var displayText = self.text
+  let visible = if self.secret: repeat("*", self.text.len) else: self.text
+  var displayText = visible
   
   if self.inFocus:
     let cursor = "_"
     if self.cursorPos < self.text.len:
-      displayText = self.text[0..<self.cursorPos] & cursor & self.text[self.cursorPos..^1]
+      displayText = visible[0..<self.cursorPos] & cursor & visible[self.cursorPos..^1]
     else:
-      displayText = self.text & cursor
+      displayText = visible & cursor
       
+  let start = max(0, self.cursorPos - self.width + 1)
+  displayText = displayText[start ..< min(displayText.len, start + self.width)]
   let bg = if self.inFocus: bgBlack else: self.bg
   let padding = max(0, self.width - countGraphemes(displayText))
   tb.write(self.x, self.y, self.fg, bg, displayText & " ".repeat(padding))
@@ -68,6 +72,6 @@ method render*(self: Button, tb: var TerminalBuffer) =
   let displayText = self.text
   let padding = max(0, self.width - countGraphemes(displayText))
   let textToShow = displayText & " ".repeat(padding)
-  tb.write(self.x, self.y, self.fg, self.bg, textToShow)
+  tb.write(self.x, self.y, self.fg, (if self.inFocus: bgBlue else: self.bg), textToShow)
 
 

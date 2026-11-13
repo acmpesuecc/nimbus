@@ -2,9 +2,6 @@ import os
 import strutils
 import httpclient, json
 import times
-import dotenv
-
-load()
 
 type
   Config* = object
@@ -18,13 +15,11 @@ type
     httpClient: HttpClient
 
 # Initialize client
-proc initBlueskyClient*(): BlueskyClient =
+proc initBlueskyClient*(handle = getEnv("BLUESKY_HANDLE"), appPassword = getEnv("APP_PASSWORD")): BlueskyClient =
   # Get required environment variables
   let pdsHost = getEnv("PDSHOST", "https://bsky.social")
-  let handle = getEnv("BLUESKY_HANDLE", "")
-  let appPassword = getEnv("APP_PASSWORD", "")
   if handle == "" or appPassword == "":
-    quit("[ERROR]: BLUESKY_HANDLE or APP_PASSWORD is missing from .env file", 1)
+    raise newException(ValueError, "Enter your handle and app password.")
 
   let config = Config(
     pdsHost: pdsHost,
@@ -35,13 +30,31 @@ proc initBlueskyClient*(): BlueskyClient =
   var client = BlueskyClient(
     config: config,
     accessJwt: "",
-    httpClient: newHttpClient()
+    httpClient: newHttpClient(timeout = 15000)
   )
 
   client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
 
-  echo "[AUTH]: Auth Token Received."
   return client
+
+proc saveCredentials*(client: BlueskyClient, path = ".env") =
+  # Preserve unrelated settings when replacing credentials after a login.
+  var lines: seq[string] = @[]
+  if fileExists(path):
+    for line in readFile(path).splitLines():
+      var key = line.split('=', 1)[0].strip()
+      key.removePrefix("export ")
+      if key notin ["PDSHOST", "BLUESKY_HANDLE", "APP_PASSWORD"]:
+        lines.add(line)
+  lines.add("PDSHOST=" & client.config.pdsHost)
+  lines.add("BLUESKY_HANDLE=" & client.config.handle)
+  lines.add("APP_PASSWORD=" & client.config.appPassword)
+  let file = open(path, fmWrite)
+  try:
+    setFilePermissions(path, {fpUserRead, fpUserWrite})
+    file.write(lines.join("\n") & "\n")
+  finally:
+    file.close()
 
 # Fetch access token
 proc authenticate*(client: var BlueskyClient) =
@@ -57,7 +70,7 @@ proc authenticate*(client: var BlueskyClient) =
   )
 
   if authResponse.code != Http200:
-    quit("[ERROR]: Failed to authenticate. Response: " & authResponse.body, 1)
+    raise newException(ValueError, "Sign-in failed. Check your handle and app password.")
 
   let authJson = parseJson(authResponse.body)
   client.accessJwt =  authJson["accessJwt"].getStr()
@@ -104,8 +117,7 @@ proc getPostsFromTimeline*(client: BlueskyClient): JsonNode =
   let timelineResponse = client.httpClient.request(timelineUrl, httpMethod = HttpGet)
 
   if timelineResponse.code != Http200: #Error message in case unable to fetch timeline.
-    echo "[ERROR]: Failed to get timeline. Response: " & timelineResponse.body
-    return %*{}
+    raise newException(ValueError, "Unable to load timeline. Press R to retry.")
 
   return parseJson(timelineResponse.body)
 
@@ -236,9 +248,12 @@ proc search*(client: var BlueskyClient,keyword: string): seq[JsonNode] =
 
 # Putting the initilization outside so that if the functions of this file are called,
 # Authentication is done first.
-var client = initBlueskyClient()
-client.authenticate()
 when isMainModule:
+  import dotenv
+  if fileExists(".env"):
+    load()
+  var client = initBlueskyClient()
+  client.authenticate()
 
   let args = commandLineParams()
 
@@ -341,4 +356,3 @@ when isMainModule:
     """
   else:
     echo "[INFO]: No specific action requested. Use --post, --timeline, --user-posts, --user-following or --following-posts. Use --help to find out more."
-  
